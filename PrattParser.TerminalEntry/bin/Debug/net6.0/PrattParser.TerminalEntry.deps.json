@@ -1,0 +1,36 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v6.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v6.0": {
+      "PrattParser.TerminalEntry/1.0.0": {
+        "dependencies": {
+          "PrattParser.Lexer": "1.0.0"
+        },
+        "runtime": {
+          "PrattParser.TerminalEntry.dll": {}
+        }
+      },
+      "PrattParser.Lexer/1.0.0": {
+        "runtime": {
+          "PrattParser.Lexer.dll": {}
+        }
+      }
+    }
+  },
+  "libraries": {
+    "PrattParser.TerminalEntry/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "PrattParser.Lexer/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}
