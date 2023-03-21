@@ -13,7 +13,9 @@ List<(string, double)> exprList = new List<(string, double)>
     //("3 + 4 * 2 / ( 1 - 5 ) ^ 2 ^ 3;", 3.001953125),
     //("1.5 + 1 + 0.5 + 0.5 * 2 + 0.5;", 4.5),
     //("let a = 2 ^ 3; let b = (++a + 1)*2; b + 5;", 25),
-    ("let a = func(b, c) { return b + c; }; a(1, 2);", 3)
+    //("let a = func(b, c) { return b + c; }; a(1, 2);", 3),
+    //("let det = func(a, b, c) { let num = -b + (b^2 - 4*a*c)^0.5; return num / 2*a;};det(1,2,1);", -1),
+    ("let det = func (a, b, c) { let num = -b + (b^2 - 4*a*c)^0.5; return num / 2*a;};let squareEq = func (x) { return x*x + 2*x + 1;}; let root = det(1,2,1); squareEq(root);", 0)
 };
 foreach (var (expr, rs) in exprList)
 {

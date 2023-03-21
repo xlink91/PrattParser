@@ -85,7 +85,7 @@ public class Parser
         {
             MoveNext(); // '('
             MoveNext();
-            var args = ParseFuncDeclarionArgs(scopedValues);
+            var args = ParseFuncDeclarionArgs(scopedValues, functions);
             if (CurrentToken().Type != TokenType.RPARENTESIS)
             {
                 throw new Exception($"Expected ')' found {CurrentToken().Value}");
@@ -97,7 +97,7 @@ public class Parser
             return new LetStatementFuncDeclaration(ident, args, statements, scopedValues, functions);
         } 
         var expr = ParseExpression(0, scopedValues, functions);
-        return new LetStatementExpression(ident, expr, scopedValues);
+        return new LetStatementExpression(ident, expr, scopedValues, functions);
     }
 
     bool IsPreffixFunction()
@@ -156,10 +156,11 @@ public class Parser
         }
         MoveNext();
         var expr = ParseExpression(0, scopedValues, functions);
-        return new ReturnStatement(expr, scopedValues);
+        return new ReturnStatement(expr, scopedValues, functions);
     }
     
-    ArgStatement ParseFuncDeclarionArgs(IDictionary<string, object> scopedValues)
+    ArgStatement ParseFuncDeclarionArgs(IDictionary<string, object> scopedValues,
+                                        IDictionary<string, LetStatementFuncDeclaration> functions)
     {
         List<Token> argsToken = new List<Token>();
         while (CurrentToken().Type == TokenType.IDENT)
@@ -176,12 +177,12 @@ public class Parser
             }
             MoveNext();
         }
-        return new ArgStatement(argsToken, scopedValues);
+        return new ArgStatement(argsToken, scopedValues, functions);
     }
     ExpressionStatement ParseExpressionStatement(IDictionary<string, object> scopedValues,
         IDictionary<string, LetStatementFuncDeclaration> functions)
     {
-        return new ExpressionStatement(ParseExpression(0, scopedValues, functions), scopedValues);
+        return new ExpressionStatement(ParseExpression(0, scopedValues, functions), scopedValues, functions);
     }
     
     Expression ParseExpression(int precedence, IDictionary<string, object> scopedValues,
@@ -257,7 +258,7 @@ public class Parser
         } 
         else if (token.Type == TokenType.IDENT)
         {
-            return ParseVariable(scopedValues);
+            return ParseVariable();
         }
         else if (token.Type == TokenType.LPARENTESIS)
         {
@@ -298,7 +299,7 @@ public class Parser
             MoveNext();
         }
         MoveNext();
-        return new FunctionCallExpression(funcIdent, argExpressionList, functions);
+        return new FunctionCallExpression(funcIdent, argExpressionList);
     }
     private int GetPrecedence(IDictionary<TokenType, short> precedence)
     {
@@ -316,9 +317,9 @@ public class Parser
         return expr;
     }
 
-    private Expression ParseVariable(IDictionary<string, object> scopedValues)
+    private Expression ParseVariable()
     {
-        var v = new VariableExpression(CurrentToken(), scopedValues);
+        var v = new VariableExpression(CurrentToken());
         MoveNext();
         return v;
     }
@@ -354,14 +355,27 @@ public class Parser
 public abstract class Statement
 {
     public Token Token;
-    public bool HasReturn { get; set; }
-    public IDictionary<string, object> ScopedValues { get; set; }
+    public bool HasReturn;
+    public IDictionary<string, object> ScopedValues;
+    public IDictionary<string, LetStatementFuncDeclaration> Functions;
 
-    public Statement(Token token, bool hasReturn, IDictionary<string, object> scopedValues)
+    public Statement(Token token, bool hasReturn, IDictionary<string, object> scopedValues,
+        IDictionary<string, LetStatementFuncDeclaration> functions)
     {
         Token = token;
         HasReturn = hasReturn;
         ScopedValues = scopedValues;
+        Functions = functions;
+    }
+
+    public void SetScopeValues(IDictionary<string, object> scopedValues)
+    {
+        ScopedValues = scopedValues;
+    }
+
+    public void SetFunctions(IDictionary<string, LetStatementFuncDeclaration> functions)
+    {
+        Functions = functions;
     }
 
     public abstract object Synthetize();
@@ -370,23 +384,24 @@ public abstract class Statement
 public class ReturnStatement : Statement
 {
     public Expression Expr;
-
-    public ReturnStatement(Expression expr, IDictionary<string, object> scopedValues) :
-        base(new Token(TokenType.RETURN, "return"), true, scopedValues)
+    public ReturnStatement(Expression expr, IDictionary<string, object> scopedValues,
+        IDictionary<string, LetStatementFuncDeclaration> functions) :
+        base(new Token(TokenType.RETURN, "return"), true, scopedValues, functions)
     {
         Expr = expr;
     }
 
     public override object Synthetize()
     {
-        return Expr.Synthetize();
+        return Expr.Synthetize(ScopedValues, Functions);
     }
 }
 
 public abstract class LetStatement : Statement
 {
-    protected LetStatement(Token token, bool hasReturn, IDictionary<string, object> scopedValues) 
-        : base(token, hasReturn, scopedValues)
+    protected LetStatement(Token token, bool hasReturn, IDictionary<string, object> scopedValues,
+                           IDictionary<string, LetStatementFuncDeclaration> functions) 
+        : base(token, hasReturn, scopedValues, functions)
     {
     }
 }
@@ -395,8 +410,9 @@ public class LetStatementExpression : LetStatement
 {
     public Token Identifier { get; set; }
     public Expression Expr { get; set; }
-    public LetStatementExpression(Token identifier, Expression expr, IDictionary<string, object> scopedValues) : 
-        base(new Token(TokenType.LET, "let"), false, scopedValues)
+    public LetStatementExpression(Token identifier, Expression expr, IDictionary<string, object> scopedValues,
+                                  IDictionary<string, LetStatementFuncDeclaration> functions) : 
+        base(new Token(TokenType.LET, "let"), false, scopedValues, functions)
     {
         Identifier = identifier;
         Expr = expr;
@@ -408,7 +424,7 @@ public class LetStatementExpression : LetStatement
         {
             throw new Exception($"Variable {Identifier.Value} declare more than one in the same scope.");
         }
-        ScopedValues.Add(Identifier.Value, Expr.Synthetize());
+        ScopedValues.Add(Identifier.Value, Expr.Synthetize(ScopedValues, Functions));
         return null;
     }
 }
@@ -416,8 +432,9 @@ public class LetStatementExpression : LetStatement
 public class ArgStatement : Statement
 {
     public List<Token> Args { get; set; }
-    public ArgStatement(List<Token> args, IDictionary<string, object> scopedValues) 
-        : base(args.First(), false, scopedValues)
+    public ArgStatement(List<Token> args, IDictionary<string, object> scopedValues,
+                        IDictionary<string, LetStatementFuncDeclaration> functions) 
+        : base(args.First(), false, scopedValues, functions)
     {
         Args = args;
     }
@@ -436,7 +453,7 @@ public class LetStatementFuncDeclaration : LetStatement
     public LetStatementFuncDeclaration(Token ident, ArgStatement args, Statement[] statements,
                                        IDictionary<string, object> scopedValues, 
                                        IDictionary<string, LetStatementFuncDeclaration> functions)
-        : base(ident, false, scopedValues)
+        : base(ident, false, scopedValues, functions)
     {
         Args = args;
         Statements = statements;
@@ -458,45 +475,45 @@ public class LetStatementFuncDeclaration : LetStatement
 
 public class ExpressionStatement : Statement
 {
-    public ExpressionStatement(Expression expr, IDictionary<string, object> scopedValues) :
-        base(new Token(TokenType.SUM, "+"), true, scopedValues)
+    public ExpressionStatement(Expression expr, IDictionary<string, object> scopedValues,
+                               IDictionary<string, LetStatementFuncDeclaration> functions) :
+        base(new Token(TokenType.SUM, "+"), true, scopedValues, functions)
     {
         Expr = expr;
     }
     public Expression Expr { get; set; }
     public override object Synthetize()
     {
-        return Expr.Synthetize();
+        return Expr.Synthetize(ScopedValues, Functions);
     }
 }
 
 public abstract class Expression
 {
     public Token Token;
-
     public Expression(Token token)
     {
         Token = token;
     }
-    public abstract object Synthetize();
+    public abstract object Synthetize(IDictionary<string, object> scopedValues,
+                                      IDictionary<string, LetStatementFuncDeclaration> functions);
 }
 
 public class VariableExpression : Expression
 {
-    private IDictionary<string, object> _scopedValues;
-    public VariableExpression(Token token, IDictionary<string, object> scopedValues) : base(token)
+    public VariableExpression(Token token) : base(token)
     {
-        _scopedValues = scopedValues;
     }
 
-    public override object Synthetize()
+    public override object Synthetize(IDictionary<string, object> scopedValues,
+                                      IDictionary<string, LetStatementFuncDeclaration> functions)
     {
         var identifier = Token.Value;
-        if (!_scopedValues.ContainsKey(identifier))
+        if (!scopedValues.ContainsKey(identifier))
         {
             throw new Exception($"Undeclared variable {identifier}");
         }
-        return Convert.ToDouble(_scopedValues[identifier]);
+        return Convert.ToDouble(scopedValues[identifier]);
     }
 }    
     
@@ -506,7 +523,8 @@ public class IntExpression : Expression
     {
     }
 
-    public override object Synthetize()
+    public override object Synthetize(IDictionary<string, object> scopedValues,
+                                      IDictionary<string, LetStatementFuncDeclaration> functions)
     {
         return int.Parse(Token.Value);
     }
@@ -518,7 +536,8 @@ public class DecimalExpression : Expression
     {
     }
 
-    public override object Synthetize()
+    public override object Synthetize(IDictionary<string, object> scopedValues,
+                                      IDictionary<string, LetStatementFuncDeclaration> functions)
     {
         return double.Parse(Token.Value);
     }
@@ -526,33 +545,29 @@ public class DecimalExpression : Expression
 
 public class FunctionCallExpression : Expression
 {
-    public IDictionary<string, LetStatementFuncDeclaration> Functions { get; set; }
     public List<Expression> ArgsExpr { get; set; }
-    public FunctionCallExpression(Token token, List<Expression> argsExpr,
-                                  IDictionary<string, LetStatementFuncDeclaration> functions) 
+    public FunctionCallExpression(Token token, List<Expression> argsExpr) 
         : base(token)
     {
         ArgsExpr = argsExpr;
-        Functions = functions;
     }
 
-    public override object Synthetize()
+    public override object Synthetize(IDictionary<string, object> scopedValues, 
+                                      IDictionary<string, LetStatementFuncDeclaration> functions)
     {
         var funcIdent = Token.Value;
-        if (!Functions.ContainsKey(funcIdent))
+        if (!functions.ContainsKey(funcIdent))
         {
             throw new Exception($"Function {funcIdent} not declared.");
         }
-        var funcDecl = Functions[funcIdent];
+        var funcDecl = functions[funcIdent];
         var args = funcDecl.Args;
-        var scopedValues = funcDecl.ScopedValues;
-
         var clonedScope = scopedValues.
             ToDictionary(x => x.Key, y => y.Value);
         for(int i = 0; i < ArgsExpr.Count; ++i)
         {
             var argIdent = args.Args[i].Value;
-            var value = ArgsExpr[i].Synthetize();
+            var value = ArgsExpr[i].Synthetize(scopedValues, functions);
             if (clonedScope.ContainsKey(argIdent))
             {
                 clonedScope[argIdent] = value;
@@ -564,13 +579,15 @@ public class FunctionCallExpression : Expression
         } 
         
         var statements = funcDecl.Statements;
-        for (int i = 0; i < statements.Length - 1; i++)
+        object rs = null;
+        for (int i = 0; i < statements.Length; i++)
         {
             var st = statements[i];
-            st.ScopedValues = clonedScope;
-            st.Synthetize();
+            st.SetFunctions(functions);
+            st.SetScopeValues(clonedScope);
+            rs = st.Synthetize();
         }
-        return statements.Last().Synthetize();
+        return rs;
     }
 }
 
@@ -589,35 +606,6 @@ public class BinaryExpression : Expression
         Left = l;
     }
 
-    public override object Synthetize()
-    {
-        double rs = 0;
-        if (Token.Type == TokenType.SUM)
-        {
-            var l = ToDouble(Left.Synthetize());
-            var r = ToDouble(Right.Synthetize());
-            rs = l + r;
-            return rs;
-        } else
-        if (Token.Type == TokenType.PRODUCT)
-        {
-            rs = ToDouble(Left.Synthetize()) * ToDouble(Right.Synthetize());
-        } else
-        if (Token.Type == TokenType.DIVISION)
-        {
-            rs = ToDouble(Left.Synthetize()) / ToDouble(Right.Synthetize());
-        } else
-        if (Token.Type == TokenType.SUBSTRACTION)
-        {
-            rs = ToDouble(Left.Synthetize()) - ToDouble(Right.Synthetize());
-        } else 
-        if (Token.Type == TokenType.EXP)
-        {
-            rs = Math.Pow(ToDouble(Left.Synthetize()), ToDouble(Right.Synthetize()));
-        }
-        return rs;
-    }
-
     private double ToDouble(object e)
     {
         if (e is double)
@@ -625,6 +613,36 @@ public class BinaryExpression : Expression
             return (double)e;
         }
         return Convert.ToDouble(e);
+    }
+
+    public override object Synthetize(IDictionary<string, object> scopedValues,
+                                      IDictionary<string, LetStatementFuncDeclaration> functions)
+    {
+        double rs = 0;
+        if (Token.Type == TokenType.SUM)
+        {
+            var l = ToDouble(Left.Synthetize(scopedValues, functions));
+            var r = ToDouble(Right.Synthetize(scopedValues, functions));
+            rs = l + r;
+            return rs;
+        } else
+        if (Token.Type == TokenType.PRODUCT)
+        {
+            rs = ToDouble(Left.Synthetize(scopedValues, functions)) * ToDouble(Right.Synthetize(scopedValues, functions));
+        } else
+        if (Token.Type == TokenType.DIVISION)
+        {
+            rs = ToDouble(Left.Synthetize(scopedValues, functions)) / ToDouble(Right.Synthetize(scopedValues, functions));
+        } else
+        if (Token.Type == TokenType.SUBSTRACTION)
+        {
+            rs = ToDouble(Left.Synthetize(scopedValues, functions)) - ToDouble(Right.Synthetize(scopedValues, functions));
+        } else 
+        if (Token.Type == TokenType.EXP)
+        {
+            rs = Math.Pow(ToDouble(Left.Synthetize(scopedValues, functions)), ToDouble(Right.Synthetize(scopedValues, functions)));
+        }
+        return rs;
     }
 }
 
@@ -635,9 +653,10 @@ public class PreffixExpression : Expression
     {
         Right = right;
     }
-    public override object Synthetize()
+    public override object Synthetize(IDictionary<string, object> scopedValues,
+                                      IDictionary<string, LetStatementFuncDeclaration> functions)
     {
-        var r = int.Parse(Right.Synthetize().ToString());
+        var r = int.Parse(Right.Synthetize(scopedValues, functions).ToString());
         if (Token.Type == TokenType.PREFFIX_SUM)
         {
             return r + 1;
@@ -649,7 +668,7 @@ public class PreffixExpression : Expression
             return r * -1;
         } else if (Token.Type == TokenType.LPARENTESIS)
         {
-            return Right.Synthetize();
+            return Right.Synthetize(scopedValues, functions);
         }
         throw new Exception("Unknown preffix expression.");
     }
