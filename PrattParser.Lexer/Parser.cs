@@ -448,8 +448,6 @@ public class LetStatementFuncDeclaration : LetStatement
 {
     public ArgStatement Args;
     public Statement[] Statements;
-    public IDictionary<string, object> ScopedValues;
-    public IDictionary<string, LetStatementFuncDeclaration> Functions;
     public LetStatementFuncDeclaration(Token ident, ArgStatement args, Statement[] statements,
                                        IDictionary<string, object> scopedValues, 
                                        IDictionary<string, LetStatementFuncDeclaration> functions)
