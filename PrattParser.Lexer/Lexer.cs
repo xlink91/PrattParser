@@ -23,10 +23,27 @@ public class Lexer
     
     public List<Token> GetTokens()
     {
+        var characterPosition = 0;
+        char prCh = default;
+        int cnt = 0;
         var tokenList = new List<Token>();
         while(HasNext())
         {
+            ++characterPosition;
             char ch = Current();
+            if (prCh == ch)
+            {
+                ++cnt;
+            }
+            else
+            {
+                prCh = ch;
+            }
+            if (cnt > 10)
+            {
+               throw new Exception($"Posible infite loop on character {ch} characterPosition" +
+                                   $" {characterPosition}");
+            }
             Token token = null;
             if (ch.IsWhiteSpace())
             {
@@ -204,7 +221,7 @@ internal static class CharacterRecognition
     }
     public static bool IsWhiteSpace(this char ch)
     {
-        return ch == ' ';
+        return ch == ' ' || ch == '\t' || (string.Empty + ch == Environment.NewLine);
     }
     public static bool IsIdent(this char ch)
     {
