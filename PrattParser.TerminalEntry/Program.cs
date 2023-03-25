@@ -17,6 +17,8 @@ List<(string, double)> exprList = new List<(string, double)>
     ("let a = func (x, y) {	let r = func (x, y) { return x*y; }; return (x+y) * r(x, y);};a(1, 2);let r = func(x) {	return x+1;};let one = 1;let two = 2;r(a(one, two+8));", 111),
     ("let a = func (x, y) {	let r = func (x, y) { return x*y;	};	return (x+y) * r(x, y);};a(1, 2);let t = func(x) {	return x+a(one, two)+1;}; let one = 1;let two = 2; t(2);", 9),
     ("let a = func (x, y) {	let r = func () { return x*y; }; return (x+y) * r();};a(1, 2); let r = func(x) { return a(x, x+1);};let one = 1;let two = 2; a(one, two+8); r(a(one, two+8));", 2698410),
+    ("let fib = func (x) { if(x < 1) { return 0; } if(x is 1) { return 1; } if(x is 2) { return 1; } return fib(x - 1) + fib(x - 2);};fib(1);fib(2);fib(3);fib(8);", 21),
+    ("let for_ = func (from, to) {    if(from is to) {        return to;    }    return from + for_(from+1, to);};for_(1, 10);", 55)
 };
 foreach (var (expr, rs) in exprList)
 {
@@ -37,4 +39,8 @@ foreach (var (expr, rs) in exprList)
         }
     }
     Console.WriteLine($"Assert.Equal({rs}, {finalResult})");
+    if ((double)rs - (double)finalResult != 0)
+    {
+        throw new Exception($"Assertion fail.");
+    }
 }

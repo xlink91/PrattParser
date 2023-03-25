@@ -13,7 +13,9 @@ public class Lexer
     {
         { "let", TokenType.LET },
         { "return", TokenType.RETURN },
-        { "func", TokenType.FUNC }
+        { "func", TokenType.FUNC },
+        { "if", TokenType.IF },
+        { "is", TokenType.IS }
     };
 
     public Lexer(string code)
@@ -31,7 +33,7 @@ public class Lexer
         {
             ++characterPosition;
             char ch = Current();
-            if (prCh == ch)
+            if (prCh == ch && !ch.IsWhiteSpace())
             {
                 ++cnt;
             }
@@ -39,7 +41,7 @@ public class Lexer
             {
                 prCh = ch;
             }
-            if (cnt > 10)
+            if (cnt > 10 && !ch.IsWhiteSpace())
             {
                throw new Exception($"Posible infite loop on character {ch} characterPosition" +
                                    $" {characterPosition}");
@@ -153,6 +155,16 @@ public class Lexer
                case '=': 
                    token = new Token(TokenType.ASSIGN, "=");
                    break;
+               case 'i':
+                   token = new Token(TokenType.IS, "is");
+                   MoveNext();
+                   break;
+               case '<':
+                   token = new Token(TokenType.LESS_THAN, "<");
+                   break;
+               case '>':
+                   token = new Token(TokenType.LESS_THAN, ">");
+                   break;
             }
         }
         MoveNext();
@@ -203,9 +215,18 @@ public class Lexer
     
 internal static class CharacterRecognition 
 {
-    public static bool IsOperator(this char ch)
+    public static bool IsOperator(this char ch, char next = (char)0)
     {
-        return new[] { '+', '-', '*', '/', '^', '=' }.Contains(ch);
+        var exists = new[] { '+', '-', '*', '/', '^', '=', '<', '>' }.Contains(ch);
+        if (exists)
+        {
+            return true;
+        }
+        if (ch == 'i' && next == 's')
+        {
+            return true;
+        }
+        return false;
     }
     public static bool IsBraces(this char ch)
     {
@@ -269,16 +290,19 @@ public enum TokenType
     LBRACE,               // {
     RBRACE,               // }  
     PREFFIX_SUM,          // ++a
-    PREFIX_SUBSTRACTION,  // --b
-    
+    PREFIX_SUBSTRACTION,  // --b,
+    LESS_THAN,            // <
+    BIGGER_THAN,          // >
+    IS,                // is
     SEMICOLON,            // ;
-    COMMA,                 //
+    COMMA,                //
     
     ASSIGN,               // =
     
     LET,
     RETURN,
     FUNC,               
+    IF,
     EOF
 }
 
